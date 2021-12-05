@@ -183,7 +183,7 @@ void BoxApp::Draw(const GameTimer& gt)
 	ThrowIfFailed(mDirectCmdListAlloc->Reset());
 
     // 通过函数ExecuteCommandList将命令列表加入命令队列后，便可对它进行重置
- // 复用命令列表即复用其相应的内存
+    // 复用命令列表即复用其相应的内存
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), mPSO.Get()));
 
     mCommandList->RSSetViewports(1, &mScreenViewport);
@@ -201,10 +201,8 @@ void BoxApp::Draw(const GameTimer& gt)
         1.0f, 0, 0, nullptr);
 
     // 指定将要渲染的目标缓冲区
-    mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(),
-        true, &DepthStencilView());
-
-
+    mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+        
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
@@ -369,7 +367,7 @@ void BoxApp::BuildShadersAndInputLayout()
 }
 
 void BoxApp::BuildBoxGeometry()
-{
+{    
     std::array<Vertex, 8> vertices =
     {
         Vertex({ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White) }),
