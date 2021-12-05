@@ -1,0 +1,14 @@
+﻿  Camera.cpp
+  d3dApp.cpp
+C:\Users\98246\Desktop\DX12资源\本书配套源代码\Common\d3dApp.h(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
+  d3dUtil.cpp
+C:\Users\98246\Desktop\DX12资源\本书配套源代码\Common\d3dUtil.cpp(30,5): warning C4244: “参数”: 从“std::streamoff”转换到“SIZE_T”，可能丢失数据
+C:\Users\98246\Desktop\DX12资源\本书配套源代码\Common\d3dUtil.cpp(70,32): warning C4244: “=”: 从“UINT64”转换到“LONG_PTR”，可能丢失数据
+  DDSTextureLoader.cpp
+  GameTimer.cpp
+  GeometryGenerator.cpp
+  MathHelper.cpp
+  BoxApp.cpp
+C:\Users\98246\Desktop\DX12资源\本书配套源代码\Common\d3dApp.h(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
+  正在生成代码...
+  MyD3D12Project.vcxproj -> C:\Users\98246\Desktop\DX12资源\本书配套源代码\MyDemos\MyD3D12Project\Debug\MyD3D12Project.exe
