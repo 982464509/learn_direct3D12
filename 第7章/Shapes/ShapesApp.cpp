@@ -16,32 +16,31 @@ using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
 
-// Lightweight structure stores parameters to draw a shape.  This will
-// vary from app-to-app.
+// 存储绘制图形所需参数的轻量级结构体。它会随着不同的应用程序而有所差别
 struct RenderItem
 {
-	RenderItem() = default;
+    RenderItem() = default;
 
-    // World matrix of the shape that describes the object's local space
-    // relative to the world space, which defines the position, orientation,
-    // and scale of the object in the world.
+    // 描述物体局部空间相对于世界空间的世界矩阵
+    // 它定义了物体位于世界空间中的位置、朝向以及大小
     XMFLOAT4X4 World = MathHelper::Identity4x4();
 
-	// Dirty flag indicating the object data has changed and we need to update the constant buffer.
-	// Because we have an object cbuffer for each FrameResource, we have to apply the
-	// update to each FrameResource.  Thus, when we modify obect data we should set 
-	// NumFramesDirty = gNumFrameResources so that each frame resource gets the update.
-	int NumFramesDirty = gNumFrameResources;
+    // 用已更新标志（dirty flag）来表示物体的相关数据已发生改变，这意味着我们此时需要更新常量缓
+    // 冲区。由于每个FrameResource中都有一个物体常量缓冲区，所以我们必须对每个FrameResource
+    // 都进行更新。即，当我们修改物体数据的时候，应当按NumFramesDirty = gNumFrameResources
+    // 进行设置，从而使每个帧资源都得到更新
+    int NumFramesDirty = gNumFrameResources;
 
-	// Index into GPU constant buffer corresponding to the ObjectCB for this render item.
-	UINT ObjCBIndex = -1;
+    // 该索引指向的GPU常量缓冲区对应于当前渲染项中的物体常量缓冲区
+    UINT ObjCBIndex = -1;
 
-	MeshGeometry* Geo = nullptr;
+    // 此渲染项参与绘制的几何体。注意，绘制一个几何体可能会用到多个渲染项
+    MeshGeometry* Geo = nullptr;
 
-    // Primitive topology.
+    // 图元拓扑
     D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-    // DrawIndexedInstanced parameters.
+    // DrawIndexedInstanced方法的参数
     UINT IndexCount = 0;
     UINT StartIndexLocation = 0;
     int BaseVertexLocation = 0;
@@ -98,11 +97,12 @@ private:
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
-	// List of all the render items.
+	//  存有所有渲染项的向量
 	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
-
-	// Render items divided by PSO.
+	//根据PSO来划分渲染项
 	std::vector<RenderItem*> mOpaqueRitems;
+
+
 
     PassConstants mMainPassCB;
 
@@ -197,12 +197,12 @@ void ShapesApp::Update(const GameTimer& gt)
     OnKeyboardInput(gt);
 	UpdateCamera(gt);
 
-    // Cycle through the circular frame resource array.
+    // 循环往复地获取帧资源循环数组中的元素
     mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;
     mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
 
-    // Has the GPU finished processing the commands of the current frame resource?
-    // If not, wait until the GPU has completed commands up to this fence point.
+    // GPU端是否已经执行完处理当前帧资源的所有命令呢？
+    // 如果还没有就令CPU等待，直到GPU完成命令的执行并抵达这个围栏点
     if(mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)
     {
         HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
@@ -211,6 +211,7 @@ void ShapesApp::Update(const GameTimer& gt)
         CloseHandle(eventHandle);
     }
 
+    // 更新mCurrFrameResource内的资源（例如常量缓冲区）
 	UpdateObjectCBs(gt);
 	UpdateMainPassCB(gt);
 }
@@ -275,13 +276,16 @@ void ShapesApp::Draw(const GameTimer& gt)
     ThrowIfFailed(mSwapChain->Present(0, 0));
 	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
 
-    // Advance the fence value to mark commands up to this fence point.
+    //  增加围栏值，将命令标记到此围栏点
     mCurrFrameResource->Fence = ++mCurrentFence;
     
-    // Add an instruction to the command queue to set a new fence point. 
-    // Because we are on the GPU timeline, the new fence point won't be 
-    // set until the GPU finishes processing all the commands prior to this Signal().
+    // 向命令队列添加一条指令来设置一个新的围栏点
+    // 由于当前的GPU正在执行绘制命令，所以在GPU处理完Signal()函数之前的所有命令以前，
+    // 并不会设置此新的围栏点
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
+
+    // 值得注意的是，GPU此时可能仍然在处理上一帧数据，但是这也没什么问题，因为我们这些操作并没有
+    // 影响与之前帧相关联的帧资源
 }
 
 void ShapesApp::OnMouseDown(WPARAM btnState, int x, int y)
@@ -356,21 +360,17 @@ void ShapesApp::UpdateCamera(const GameTimer& gt)
 void ShapesApp::UpdateObjectCBs(const GameTimer& gt)
 {
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
-	for(auto& e : mAllRitems)
+	for(auto& renderItem : mAllRitems)
 	{
-		// Only update the cbuffer data if the constants have changed.  
-		// This needs to be tracked per frame resource.
-		if(e->NumFramesDirty > 0)
+        // 只要常量发生了改变就得更新常量缓冲区内的数据。而且要对每个帧资源都进行更新
+		if(renderItem->NumFramesDirty > 0)
 		{
-			XMMATRIX world = XMLoadFloat4x4(&e->World);
-
+			XMMATRIX world = XMLoadFloat4x4(&renderItem->World);
 			ObjectConstants objConstants;
 			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
-
-			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
-
-			// Next FrameResource need to be updated too.
-			e->NumFramesDirty--;
+			currObjectCB->CopyData(renderItem->ObjCBIndex, objConstants);
+			// 还需要对下一个FrameResource进行更新
+            renderItem->NumFramesDirty--;
 		}
 	}
 }
@@ -474,6 +474,7 @@ void ShapesApp::BuildConstantBufferViews()
     }
 }
 
+//调整根签名来使之获取所需的两个描述符表
 void ShapesApp::BuildRootSignature()
 {
     CD3DX12_DESCRIPTOR_RANGE cbvTable0;
@@ -482,14 +483,14 @@ void ShapesApp::BuildRootSignature()
     CD3DX12_DESCRIPTOR_RANGE cbvTable1;
     cbvTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1);
 
-	// Root parameter can be a table, root descriptor or root constants.
+    // 根参数可能是描述符表、根描述符或根常量
 	CD3DX12_ROOT_PARAMETER slotRootParameter[2];
 
 	// Create root CBVs.
     slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable0);
     slotRootParameter[1].InitAsDescriptorTable(1, &cbvTable1);
 
-	// A root signature is an array of root parameters.
+    // 根签名由一系列根参数所构成
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr, 
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
