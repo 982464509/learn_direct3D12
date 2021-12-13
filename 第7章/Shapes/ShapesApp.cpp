@@ -525,6 +525,7 @@ void ShapesApp::BuildShadersAndInputLayout()
     };
 }
 
+//创建几何体缓冲区、缓存绘制调用所需参数值以及绘制物体的具体过程
 void ShapesApp::BuildShapeGeometry()
 {
     GeometryGenerator geoGen;
@@ -533,26 +534,25 @@ void ShapesApp::BuildShapeGeometry()
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
 	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
 
-	//
-	// We are concatenating all the geometry into one big vertex/index buffer.  So
-	// define the regions in the buffer each submesh covers.
-	//
+    //
+    // 将所有的几何体数据都合并到一对大的顶点/索引缓冲区中
+    // 以此来定义每个子网格数据在缓冲区中所占的范围
+    //
 
-	// Cache the vertex offsets to each object in the concatenated vertex buffer.
+
+	//  对合并顶点缓冲区中每个物体的顶点偏移量进行缓存
 	UINT boxVertexOffset = 0;
 	UINT gridVertexOffset = (UINT)box.Vertices.size();
 	UINT sphereVertexOffset = gridVertexOffset + (UINT)grid.Vertices.size();
 	UINT cylinderVertexOffset = sphereVertexOffset + (UINT)sphere.Vertices.size();
 
-	// Cache the starting index for each object in the concatenated index buffer.
+	//  对合并索引缓冲区中每个物体的起始索引进行缓存
 	UINT boxIndexOffset = 0;
 	UINT gridIndexOffset = (UINT)box.Indices32.size();
 	UINT sphereIndexOffset = gridIndexOffset + (UINT)grid.Indices32.size();
 	UINT cylinderIndexOffset = sphereIndexOffset + (UINT)sphere.Indices32.size();
 
-    // Define the SubmeshGeometry that cover different 
-    // regions of the vertex/index buffers.
-
+    //定义的多个SubmeshGeometry结构体中包含了顶点 / 索引缓冲区内不同几何体的子网格数据
 	SubmeshGeometry boxSubmesh;
 	boxSubmesh.IndexCount = (UINT)box.Indices32.size();
 	boxSubmesh.StartIndexLocation = boxIndexOffset;
@@ -573,11 +573,9 @@ void ShapesApp::BuildShapeGeometry()
 	cylinderSubmesh.StartIndexLocation = cylinderIndexOffset;
 	cylinderSubmesh.BaseVertexLocation = cylinderVertexOffset;
 
-	//
-	// Extract the vertex elements we are interested in and pack the
-	// vertices of all the meshes into one vertex buffer.
-	//
-
+    //
+    // 提取出所需的顶点元素，再将所有网格的顶点装进一个顶点缓冲区
+    //
 	auto totalVertexCount =
 		box.Vertices.size() +
 		grid.Vertices.size() +
@@ -645,6 +643,8 @@ void ShapesApp::BuildShapeGeometry()
 	geo->DrawArgs["sphere"] = sphereSubmesh;
 	geo->DrawArgs["cylinder"] = cylinderSubmesh;
 
+    //为每个几何体、PSO、纹理和着色器等创建新的变量名是一件很烦人的事，所以我们使用无序映射表（unordered map），
+    //并根据名称在常数时间（constant time）内寻找和引用所需的对象。
 	mGeometries[geo->Name] = std::move(geo);
 }
 
@@ -700,6 +700,7 @@ void ShapesApp::BuildFrameResources()
     }
 }
 
+// 渲染项 ： 绘制顶点/索引缓冲区的子区域（也就是单个几何体）。
 void ShapesApp::BuildRenderItems()
 {
 	auto boxRitem = std::make_unique<RenderItem>();
