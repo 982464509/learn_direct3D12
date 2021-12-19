@@ -220,12 +220,12 @@ void ShapesApp::Draw(const GameTimer& gt)
 {
     auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 
-    // Reuse the memory associated with command recording.
-    // We can only reset when the associated command lists have finished execution on the GPU.
+    // 复用与记录命令有关的内存
+    // 只有在GPU 执行完与该内存相关联的命令列表时，才能对此命令列表分配器进行重置
     ThrowIfFailed(cmdListAlloc->Reset());
 
-    // A command list can be reset after it has been added to the command queue via ExecuteCommandList.
-    // Reusing the command list reuses memory.
+    // 在通过ExecuteCommandList方法将命令列表添加到命令队列中之后，我们就可以对它进行重置
+    // 复用命令列表即复用与之相关的内存
     if(mIsWireframe)
     {
         ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque_wireframe"].Get()));
@@ -238,15 +238,15 @@ void ShapesApp::Draw(const GameTimer& gt)
     mCommandList->RSSetViewports(1, &mScreenViewport);
     mCommandList->RSSetScissorRects(1, &mScissorRect);
 
-    // Indicate a state transition on the resource usage.
+    // 根据资源的用途指示资源状态的转换
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
-    // Clear the back buffer and depth buffer.
+    // 清除后台缓冲区和深度缓冲区
     mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
     mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
-    // Specify the buffers we are going to render to.
+    // 指定要渲染的目标缓冲区
     mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
     ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get() };
@@ -261,18 +261,18 @@ void ShapesApp::Draw(const GameTimer& gt)
 
     DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
 
-    // Indicate a state transition on the resource usage.
+    // 按照资源的用途指示资源状态的转换
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
-    // Done recording commands.
+    // 完成命令的记录
     ThrowIfFailed(mCommandList->Close());
 
-    // Add the command list to the queue for execution.
+    // 将命令列表加入到命令队列中用于执行.
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
-    // Swap the back and front buffers
+    // 交换前后台缓冲区
     ThrowIfFailed(mSwapChain->Present(0, 0));
 	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
 
@@ -281,7 +281,7 @@ void ShapesApp::Draw(const GameTimer& gt)
     
     // 向命令队列添加一条指令来设置一个新的围栏点
     // 由于当前的GPU正在执行绘制命令，所以在GPU处理完Signal()函数之前的所有命令以前，
-    // 并不会设置此新的围栏点
+    // 并不会设置此新的围栏点，这要等到它处理完Signal()函数之前的所有命令
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 
     // 值得注意的是，GPU此时可能仍然在处理上一帧数据，但是这也没什么问题，因为我们这些操作并没有
@@ -407,11 +407,11 @@ void ShapesApp::BuildDescriptorHeaps()
 {
     UINT objCount = (UINT)mOpaqueRitems.size();
 
-    // Need a CBV descriptor for each object for each frame resource,
-    // +1 for the perPass CBV for each frame resource.
-    UINT numDescriptors = (objCount+1) * gNumFrameResources;
+    // 我们需要为每个帧资源中的每一个物体都创建一个CBV描述符，
+    // 为了容纳每个帧资源中的渲染过程CBV而+1
+    UINT numDescriptors = (objCount + 1) * gNumFrameResources;
 
-    // Save an offset to the start of the pass CBVs.  These are the last 3 descriptors.
+    // 保存渲染过程CBV的起始偏移量。在本程序中，这是排在最后面的3个描述符
     mPassCbvOffset = objCount * gNumFrameResources;
 
     D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
@@ -419,8 +419,7 @@ void ShapesApp::BuildDescriptorHeaps()
     cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     cbvHeapDesc.NodeMask = 0;
-    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc,
-        IID_PPV_ARGS(&mCbvHeap)));
+    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));       
 }
 
 void ShapesApp::BuildConstantBufferViews()
@@ -429,7 +428,7 @@ void ShapesApp::BuildConstantBufferViews()
 
     UINT objCount = (UINT)mOpaqueRitems.size();
 
-    // Need a CBV descriptor for each object for each frame resource.
+    // 每个帧资源中的每一个物体都需要一个对应的CBV描述符
     for(int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex)
     {
         auto objectCB = mFrameResources[frameIndex]->ObjectCB->Resource();
@@ -437,11 +436,11 @@ void ShapesApp::BuildConstantBufferViews()
         {
             D3D12_GPU_VIRTUAL_ADDRESS cbAddress = objectCB->GetGPUVirtualAddress();
 
-            // Offset to the ith object constant buffer in the buffer.
-            cbAddress += i*objCBByteSize;
+            // 偏移到缓冲区中第i个物体的常量缓冲区
+            cbAddress += i* objCBByteSize;
 
-            // Offset to the object cbv in the descriptor heap.
-            int heapIndex = frameIndex*objCount + i;
+            // 偏移到该物体在描述符堆中的CBV
+            int heapIndex = frameIndex*objCount + i;            
             auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
             handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);
 
@@ -455,13 +454,13 @@ void ShapesApp::BuildConstantBufferViews()
 
     UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 
-    // Last three descriptors are the pass CBVs for each frame resource.
-    for(int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex)
+    // 最后3个描述符依次是每个帧资源的渲染过程CBV
+    for (int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex)
     {
         auto passCB = mFrameResources[frameIndex]->PassCB->Resource();
+        // 每个帧资源的渲染过程缓冲区中只存有一个常量缓冲区
         D3D12_GPU_VIRTUAL_ADDRESS cbAddress = passCB->GetGPUVirtualAddress();
-
-        // Offset to the pass cbv in the descriptor heap.
+        // 偏移到描述符堆中对应的渲染过程CBV
         int heapIndex = mPassCbvOffset + frameIndex;
         auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
         handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);
@@ -786,7 +785,7 @@ void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::v
  
 	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
 
-    // For each render item...
+    // 对于每个渲染项来说...
     for(size_t i = 0; i < ritems.size(); ++i)
     {
         auto ri = ritems[i];
@@ -795,7 +794,7 @@ void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::v
         cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-        // Offset to the CBV in the descriptor heap for this object and for this frame resource.
+        // 为了绘制当前的帧资源和当前物体，偏移到描述符堆中对应的CBV处
         UINT cbvIndex = mCurrFrameResourceIndex*(UINT)mOpaqueRitems.size() + ri->ObjCBIndex;
         auto cbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
         cbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);
