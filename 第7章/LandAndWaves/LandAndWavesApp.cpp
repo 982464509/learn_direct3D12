@@ -17,32 +17,30 @@ using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
 
-// Lightweight structure stores parameters to draw a shape.  This will
-// vary from app-to-app.
+// 存储绘制图形所需参数的轻量级结构体。它会随着不同的应用程序而有所差别
 struct RenderItem
 {
 	RenderItem() = default;
 
-	// World matrix of the shape that describes the object's local space
-	// relative to the world space, which defines the position, orientation,
-	// and scale of the object in the world.
+	// 描述物体局部空间相对于世界空间的世界矩阵
+	// 它定义了物体位于世界空间中的位置、朝向以及大小
 	XMFLOAT4X4 World = MathHelper::Identity4x4();
 
-	// Dirty flag indicating the object data has changed and we need to update the constant buffer.
-	// Because we have an object cbuffer for each FrameResource, we have to apply the
-	// update to each FrameResource.  Thus, when we modify obect data we should set 
-	// NumFramesDirty = gNumFrameResources so that each frame resource gets the update.
+	// 用已更新标志（dirty flag）来表示物体的相关数据已发生改变，这意味着我们此时需要更新常量缓
+	// 冲区。由于每个FrameResource中都有一个物体常量缓冲区，所以我们必须对每个FrameResource
+	// 都进行更新。即，当我们修改物体数据的时候，应当按NumFramesDirty = gNumFrameResources
+	// 进行设置，从而使每个帧资源都得到更新
 	int NumFramesDirty = gNumFrameResources;
 
-	// Index into GPU constant buffer corresponding to the ObjectCB for this render item.
+	// 该索引指向的GPU常量缓冲区对应于当前渲染项中的物体常量缓冲区
 	UINT ObjCBIndex = -1;
-
+	// 此渲染项参与绘制的几何体。注意，绘制一个几何体可能会用到多个渲染项
 	MeshGeometry* Geo = nullptr;
 
-	// Primitive topology.
+	// Primitive topology 图元拓扑
 	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-	// DrawIndexedInstanced parameters.
+	// DrawIndexedInstanced 方法的参数.
 	UINT IndexCount = 0;
 	UINT StartIndexLocation = 0;
 	int BaseVertexLocation = 0;
@@ -213,12 +211,12 @@ void LandAndWavesApp::Update(const GameTimer& gt)
 	OnKeyboardInput(gt);
 	UpdateCamera(gt);
 
-	// Cycle through the circular frame resource array.
+	// 循环查看环形框架资源数组。
 	mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % gNumFrameResources;
 	mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
 
-	// Has the GPU finished processing the commands of the current frame resource?
-	// If not, wait until the GPU has completed commands up to this fence point.
+	//GPU是否已经完成了对当前帧资源的指令处理？
+	//如果没有，请等待，直到GPU完成到这个栅栏点的命令。
 	if(mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)
 	{
 		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
@@ -236,12 +234,12 @@ void LandAndWavesApp::Draw(const GameTimer& gt)
 {
 	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
 
-	// Reuse the memory associated with command recording.
-	// We can only reset when the associated command lists have finished execution on the GPU.
+	// 复用与记录命令有关的内存
+	// 只有在GPU 执行完与该内存相关联的命令列表时，才能对此命令列表分配器进行重置
 	ThrowIfFailed(cmdListAlloc->Reset());
 
-	// A command list can be reset after it has been added to the command queue via ExecuteCommandList.
-	// Reusing the command list reuses memory.
+	// 在通过ExecuteCommandList方法将命令列表添加到命令队列中之后，我们就可以对它进行重置
+	// 复用命令列表即复用与之相关的内存
     if(mIsWireframe)
     {
         ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque_wireframe"].Get()));
@@ -254,33 +252,33 @@ void LandAndWavesApp::Draw(const GameTimer& gt)
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
 
-	// Indicate a state transition on the resource usage.
+	// 根据资源的用途指示资源状态的转换
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
-	// Clear the back buffer and depth buffer.
+	// 清除后台缓冲区和深度缓冲区
 	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
-	// Specify the buffers we are going to render to.
+	//  指定要渲染的目标缓冲区
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-    // Bind per-pass constant buffer.  We only need to do this once per-pass.
+    // 绑定渲染过程中所用的常量缓冲区。在每个渲染过程中，这段代码只需执行一次 
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
 
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
 
-	// Indicate a state transition on the resource usage.
+	// 按照资源的用途指示资源状态的转换
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
-	// Done recording commands.
+	// 完成命令的记录
 	ThrowIfFailed(mCommandList->Close());
 
-	// Add the command list to the queue for execution.
+	// 将命令列表加入到命令队列中用于执行
 	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
 	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
@@ -288,12 +286,12 @@ void LandAndWavesApp::Draw(const GameTimer& gt)
 	ThrowIfFailed(mSwapChain->Present(0, 0));
 	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
 
-	// Advance the fence value to mark commands up to this fence point.
+	//  增加围栏值，将之前的命令标记到此围栏点上
 	mCurrFrameResource->Fence = ++mCurrentFence;
 
-	// Add an instruction to the command queue to set a new fence point. 
-    // Because we are on the GPU timeline, the new fence point won't be 
-    // set until the GPU finishes processing all the commands prior to this Signal().
+	// 向命令队列添加一条指令，以设置新的围栏点
+	// GPU还在执行我们此前向命令队列中传入的命令，所以，GPU不会立即设置新 
+	// 的围栏点，这要等到它处理完Signal()函数之前的所有命令
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
@@ -371,8 +369,7 @@ void LandAndWavesApp::UpdateObjectCBs(const GameTimer& gt)
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
 	for(auto& e : mAllRitems)
 	{
-		// Only update the cbuffer data if the constants have changed.  
-		// This needs to be tracked per frame resource.
+		// 要常量发生了改变就得更新常量缓冲区内的数据。而且要对每个帧资源都进行更新
 		if(e->NumFramesDirty > 0)
 		{
 			XMMATRIX world = XMLoadFloat4x4(&e->World);
@@ -382,7 +379,7 @@ void LandAndWavesApp::UpdateObjectCBs(const GameTimer& gt)
 
 			currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 
-			// Next FrameResource need to be updated too.
+			// 还需要对下一个FrameResource进行更新
 			e->NumFramesDirty--;
 		}
 	}
@@ -418,7 +415,7 @@ void LandAndWavesApp::UpdateMainPassCB(const GameTimer& gt)
 
 void LandAndWavesApp::UpdateWaves(const GameTimer& gt)
 {
-	// Every quarter second, generate a random wave.
+	// 每隔1/4秒就要生成一个随机波浪
 	static float t_base = 0.0f;
 	if((mTimer.TotalTime() - t_base) >= 0.25f)
 	{
@@ -432,22 +429,19 @@ void LandAndWavesApp::UpdateWaves(const GameTimer& gt)
 		mWaves->Disturb(i, j, r);
 	}
 
-	// Update the wave simulation.
+	// 更新模拟的波浪
 	mWaves->Update(gt.DeltaTime());
 
-	// Update the wave vertex buffer with the new solution.
+	// 用波浪方程求出的新数据来更新波浪顶点缓冲区
 	auto currWavesVB = mCurrFrameResource->WavesVB.get();
 	for(int i = 0; i < mWaves->VertexCount(); ++i)
 	{
 		Vertex v;
-
 		v.Pos = mWaves->Position(i);
         v.Color = XMFLOAT4(DirectX::Colors::Blue);
-
 		currWavesVB->CopyData(i, v);
 	}
-
-	// Set the dynamic VB of the wave renderitem to the current frame VB.
+	// 将波浪渲染项的动态顶点缓冲区设置到当前帧的顶点缓冲区
 	mWavesRitem->Geo->VertexBufferGPU = currWavesVB->Resource();
 }
 
@@ -500,9 +494,9 @@ void LandAndWavesApp::BuildLandGeometry()
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(160.0f, 160.0f, 50, 50);
 
 	//
-	// Extract the vertex elements we are interested and apply the height function to
-	// each vertex.  In addition, color the vertices based on their height so we have
-	// sandy looking beaches, grassy low hills, and snow mountain peaks.
+	// 获取我们所需要的顶点元素，并利用高度函数计算每个顶点的高度值
+	// 另外，顶点的颜色要基于它们的高度而定
+	// 所以，图像中才会有看起来如沙质的沙滩、山腰处的植被以及山峰处的积雪
 	//
 
 	std::vector<Vertex> vertices(grid.Vertices.size());
@@ -512,32 +506,32 @@ void LandAndWavesApp::BuildLandGeometry()
 		vertices[i].Pos = p;
 		vertices[i].Pos.y = GetHillsHeight(p.x, p.z);
 
-        // Color the vertex based on its height.
-        if(vertices[i].Pos.y < -10.0f)
-        {
-            // Sandy beach color.
-            vertices[i].Color = XMFLOAT4(1.0f, 0.96f, 0.62f, 1.0f);
-        }
-        else if(vertices[i].Pos.y < 5.0f)
-        {
-            // Light yellow-green.
-            vertices[i].Color = XMFLOAT4(0.48f, 0.77f, 0.46f, 1.0f);
-        }
-        else if(vertices[i].Pos.y < 12.0f)
-        {
-            // Dark yellow-green.
-            vertices[i].Color = XMFLOAT4(0.1f, 0.48f, 0.19f, 1.0f);
-        }
-        else if(vertices[i].Pos.y < 20.0f)
-        {
-            // Dark brown.
-            vertices[i].Color = XMFLOAT4(0.45f, 0.39f, 0.34f, 1.0f);
-        }
-        else
-        {
-            // White snow.
-            vertices[i].Color = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-        }
+		// 基于顶点高度为它上色
+		if (vertices[i].Pos.y < -10.0f)
+		{
+			// 沙滩的颜色
+			vertices[i].Color = XMFLOAT4(1.0f, 0.96f, 0.62f, 1.0f);
+		}
+		else if (vertices[i].Pos.y < 5.0f)
+		{
+			// 浅黄绿色
+			vertices[i].Color = XMFLOAT4(0.48f, 0.77f, 0.46f, 1.0f);
+		}
+		else if (vertices[i].Pos.y < 12.0f)
+		{
+			// 深黄绿色
+			vertices[i].Color = XMFLOAT4(0.1f, 0.48f, 0.19f, 1.0f);
+		}
+		else if (vertices[i].Pos.y < 20.0f)
+		{
+			// 深棕色
+			vertices[i].Color = XMFLOAT4(0.45f, 0.39f, 0.34f, 1.0f);
+		}
+		else
+		{
+			// 白雪皑皑
+			vertices[i].Color = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+		}
 	}
     
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);

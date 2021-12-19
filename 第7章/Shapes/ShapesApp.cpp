@@ -187,7 +187,7 @@ void ShapesApp::OnResize()
 {
     D3DApp::OnResize();
 
-    // The window resized, so update the aspect ratio and recompute the projection matrix.
+    // 窗口调整了大小，所以更新长宽比并重新计算投影矩阵。
     XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
     XMStoreFloat4x4(&mProj, P);
 }
@@ -305,27 +305,27 @@ void ShapesApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
     if((btnState & MK_LBUTTON) != 0)
     {
-        // Make each pixel correspond to a quarter of a degree.
+        // 根据鼠标的移动距离计算旋转角度，令每个像素按此角度的1/4进行旋转
         float dx = XMConvertToRadians(0.25f*static_cast<float>(x - mLastMousePos.x));
         float dy = XMConvertToRadians(0.25f*static_cast<float>(y - mLastMousePos.y));
 
-        // Update angles based on input to orbit camera around box.
+        // 根据鼠标的输入来更新摄像机绕Box旋转的角度
         mTheta += dx;
         mPhi += dy;
 
-        // Restrict the angle mPhi.
+        // 限制角度mPhi的范围
         mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
     }
     else if((btnState & MK_RBUTTON) != 0)
     {
-        // Make each pixel correspond to 0.2 unit in the scene.
+        // 使场景中的每个像素按鼠标移动距离的0.005倍进行缩放
         float dx = 0.05f*static_cast<float>(x - mLastMousePos.x);
         float dy = 0.05f*static_cast<float>(y - mLastMousePos.y);
 
-        // Update the camera radius based on input.
+        // 根据鼠标的输入更新摄像机的可视范围半径
         mRadius += dx - dy;
 
-        // Restrict the radius.
+        // 限制可视半径的范围
         mRadius = MathHelper::Clamp(mRadius, 5.0f, 150.0f);
     }
 
@@ -343,7 +343,7 @@ void ShapesApp::OnKeyboardInput(const GameTimer& gt)
  
 void ShapesApp::UpdateCamera(const GameTimer& gt)
 {
-	// Convert Spherical to Cartesian coordinates.
+	// 将球面坐标转换为笛卡尔 直角坐标。
 	mEyePos.x = mRadius*sinf(mPhi)*cosf(mTheta);
 	mEyePos.z = mRadius*sinf(mPhi)*sinf(mTheta);
 	mEyePos.y = mRadius*cosf(mPhi);
@@ -493,7 +493,7 @@ void ShapesApp::BuildRootSignature()
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr, 
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-	// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+    // 创建仅含一个槽位（该槽位指向一个仅由单个常量缓冲区组成的描述符区域）的根签名
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
 	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
