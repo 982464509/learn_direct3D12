@@ -21,20 +21,19 @@ bool d3dUtil::IsKeyDown(int vkeyCode)
 ComPtr<ID3DBlob> d3dUtil::LoadBinary(const std::wstring& filename)
 {
     std::ifstream fin(filename, std::ios::binary);
-
     fin.seekg(0, std::ios_base::end);
     std::ifstream::pos_type size = (int)fin.tellg();
     fin.seekg(0, std::ios_base::beg);
 
     ComPtr<ID3DBlob> blob;
     ThrowIfFailed(D3DCreateBlob(size, blob.GetAddressOf()));
-
     fin.read((char*)blob->GetBufferPointer(), size);
     fin.close();
-
     return blob;
 }
 
+//通过把资源提交至上传堆，才得以将数据从CPU系统内存复制到GPU显存上传缓冲区中。而后再把顶点数据从上传缓冲区复制到真正的顶点缓冲区中。
+//因为需要利用作为中介的上传缓冲区来初始化默认缓冲区（即用堆类型D3D12_HEAP_TYPE_DEFAULT创建的缓冲区）中的数据
 Microsoft::WRL::ComPtr<ID3D12Resource> d3dUtil::CreateDefaultBuffer(
     ID3D12Device* device,
     ID3D12GraphicsCommandList* cmdList,

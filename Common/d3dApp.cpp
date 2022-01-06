@@ -436,6 +436,13 @@ bool D3DApp::InitDirect3D()
 			IID_PPV_ARGS(&md3dDevice)));
 	}
 
+	ComPtr<IDXGIAdapter> pWarpAdapter;
+	ThrowIfFailed(mdxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)));
+	ThrowIfFailed(D3D12CreateDevice(
+		pWarpAdapter.Get(),
+		D3D_FEATURE_LEVEL_11_0,
+		IID_PPV_ARGS(&md3dDevice)));
+
 	// ②. 创建围栏并获取描述符的大小
 	ThrowIfFailed(md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence)));		
 	mRtvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -461,7 +468,7 @@ bool D3DApp::InitDirect3D()
 	assert(m4xMsaaQuality > 0 && "Unexpected MSAA quality level.");
 	
 #ifdef _DEBUG
-    //LogAdapters();
+    LogAdapters();
 #endif
 	//④. 创建命令队列和命令列表	
 	CreateCommandObjects();
@@ -501,7 +508,7 @@ void D3DApp::CreateSwapChain()
 {
 	// 释放之前所创的交换链，随后再进行重建。这样一来，我们就可以用不同的设置来重新创建交换链，借此在运行时修改多重采样的配置。
     mSwapChain.Reset();
-
+	
 	//描述创建后的交换链的特性
     DXGI_SWAP_CHAIN_DESC sd;
     sd.BufferDesc.Width = mClientWidth;		// 缓冲区分辨率
@@ -536,7 +543,6 @@ void D3DApp::FlushCommandQueue()
 {
 	// 增加围栏值，接下来将命令标记到此围栏点
     mCurrentFence++;
-
 	// 向命令队列中添加一条用来设置新围栏点的命令	。由于这条命令要交由GPU修改围栏值，所以在GPU处理完以前的所有命令之前，它并不会设置新的围栏点Signal
     ThrowIfFailed(mCommandQueue->Signal(mFence.Get(), mCurrentFence));
 

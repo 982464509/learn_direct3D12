@@ -102,12 +102,8 @@ private:
 	//根据PSO来划分渲染项
 	std::vector<RenderItem*> mOpaqueRitems;
 
-
-
     PassConstants mMainPassCB;
-
     UINT mPassCbvOffset = 0;
-
     bool mIsWireframe = false;
 
 	XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
@@ -538,7 +534,6 @@ void ShapesApp::BuildShapeGeometry()
     // 以此来定义每个子网格数据在缓冲区中所占的范围
     //
 
-
 	//  对合并顶点缓冲区中每个物体的顶点偏移量进行缓存
 	UINT boxVertexOffset = 0;
 	UINT gridVertexOffset = (UINT)box.Vertices.size();
@@ -643,9 +638,11 @@ void ShapesApp::BuildShapeGeometry()
 	geo->DrawArgs["cylinder"] = cylinderSubmesh;
 
     //为每个几何体、PSO、纹理和着色器等创建新的变量名是一件很烦人的事，所以我们使用无序映射表（unordered map），
-    //并根据名称在常数时间（constant time）内寻找和引用所需的对象。
+    //并根据名称在常数时间内寻找和引用所需的对象。
 	mGeometries[geo->Name] = std::move(geo);
 }
+
+
 
 void ShapesApp::BuildPSOs()
 {
@@ -781,15 +778,12 @@ void ShapesApp::BuildRenderItems()
 
 void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
-    UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
- 
+    UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants)); 
 	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
-
     // 对于每个渲染项来说...
     for(size_t i = 0; i < ritems.size(); ++i)
     {
         auto ri = ritems[i];
-
         cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());
         cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);

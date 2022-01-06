@@ -113,11 +113,10 @@ BoxApp::~BoxApp()
 bool BoxApp::Initialize()
 {
     if(!D3DApp::Initialize())
-		return false;
-		
+		return false;		
     // 重置命令列表为执行初始化命令做好准备工作
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
- 
+
     BuildDescriptorHeaps();
 	BuildConstantBuffers();
     BuildRootSignature();
@@ -126,11 +125,9 @@ bool BoxApp::Initialize()
     BuildPSO();
 
     // Execute the initialization commands
-    ThrowIfFailed(mCommandList->Close());
-
+    mCommandList->Close();
 	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
 	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
-
     // Wait until initialization is complete.
     FlushCommandQueue();
 	return true;
@@ -186,13 +183,14 @@ void BoxApp::Draw(const GameTimer& gt)
     // 复用命令列表即复用其相应的内存
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), mPSO.Get()));
 
-    mCommandList->RSSetViewports(1, &mScreenViewport);
-    mCommandList->RSSetScissorRects(1, &mScissorRect);
-
     // 按照资源的用途指示其状态的转变，此处将资源从呈现状态转换为渲染目标状态
     mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
         D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
+    // 设置视口和裁剪矩形。它们需要随着命令列表的重置而重置
+    mCommandList->RSSetViewports(1, &mScreenViewport);
+    mCommandList->RSSetScissorRects(1, &mScissorRect);
+   
     // 清除后台缓冲区和深度缓冲区
     mCommandList->ClearRenderTargetView(CurrentBackBufferView(),
         Colors::LightSteelBlue, 0, nullptr);
@@ -202,21 +200,23 @@ void BoxApp::Draw(const GameTimer& gt)
 
     // 指定将要渲染的目标缓冲区
     mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
-        
+     
+
+
+    // --------------------
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-
 	mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());
 	mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());
-    mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    
-    //令描述符表与渲染流水线相绑定
+    mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);     //primitive topology trianglelist
+    //令描述符表与渲染流水线相绑定  
     mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
-
     mCommandList->DrawIndexedInstanced(mBoxGeo->DrawArgs["box"].IndexCount, 1, 0, 0, 0);				
-	
+    // --------------------
+
+
+
     // 按照资源的用途指示其状态的转变，此处将资源从渲染目标状态转换为呈现状态
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
@@ -276,7 +276,6 @@ void BoxApp::OnMouseMove(WPARAM btnState, int x, int y)
         // 限制可视半径的范围
         mRadius = MathHelper::Clamp(mRadius, 3.0f, 15.0f);
     }
-
     mLastMousePos.x = x;
     mLastMousePos.y = y;
 }
@@ -295,9 +294,7 @@ void BoxApp::BuildDescriptorHeaps()
 void BoxApp::BuildConstantBuffers()
 {
 	mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
-
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddress = mObjectCB->Resource()->GetGPUVirtualAddress();
     // 偏移到常量缓冲区中绘制第i个物体所需的常量数据
     // 这里取i = 0
@@ -398,12 +395,13 @@ void BoxApp::BuildBoxGeometry()
     const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
-	mBoxGeo = std::make_unique<MeshGeometry>();
+	mBoxGeo = std::make_unique<MeshGeometry>();    
 	mBoxGeo->Name = "boxGeo";
 
-	ThrowIfFailed(D3DCreateBlob(vbByteSize, &mBoxGeo->VertexBufferCPU));
+    D3DCreateBlob(vbByteSize, &mBoxGeo->VertexBufferCPU);
 	CopyMemory(mBoxGeo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
-	ThrowIfFailed(D3DCreateBlob(ibByteSize, &mBoxGeo->IndexBufferCPU));
+
+    D3DCreateBlob(ibByteSize, &mBoxGeo->IndexBufferCPU);
 	CopyMemory(mBoxGeo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
 
 	mBoxGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
@@ -421,7 +419,6 @@ void BoxApp::BuildBoxGeometry()
 	submesh.IndexCount = (UINT)indices.size();
 	submesh.StartIndexLocation = 0;
 	submesh.BaseVertexLocation = 0;
-
 	mBoxGeo->DrawArgs["box"] = submesh;
 }
 

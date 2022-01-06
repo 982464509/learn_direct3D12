@@ -306,16 +306,13 @@ GeometryGenerator::Vertex GeometryGenerator::MidPoint(const Vertex& v0, const Ve
 
 GeometryGenerator::MeshData GeometryGenerator::CreateGeosphere(float radius, uint32 numSubdivisions)
 {
-    MeshData meshData;
+	MeshData meshData;
+	// 确定细分的次数
+	numSubdivisions = std::min<uint32>(numSubdivisions, 6u);
 
-	// Put a cap on the number of subdivisions.
-    numSubdivisions = std::min<uint32>(numSubdivisions, 6u);
-
-	// Approximate a sphere by tessellating an icosahedron.
-
+	// 通过对一个正二十面体进行曲面细分来逼近一个球体
 	const float X = 0.525731f; 
 	const float Z = 0.850651f;
-
 	XMFLOAT3 pos[12] = 
 	{
 		XMFLOAT3(-X, 0.0f, Z),  XMFLOAT3(X, 0.0f, Z),  
@@ -325,7 +322,6 @@ GeometryGenerator::MeshData GeometryGenerator::CreateGeosphere(float radius, uin
 		XMFLOAT3(Z, X, 0.0f),   XMFLOAT3(-Z, X, 0.0f), 
 		XMFLOAT3(Z, -X, 0.0f),  XMFLOAT3(-Z, -X, 0.0f)
 	};
-
     uint32 k[60] =
 	{
 		1,4,0,  4,9,0,  4,5,9,  8,5,4,  1,8,4,    
@@ -333,7 +329,6 @@ GeometryGenerator::MeshData GeometryGenerator::CreateGeosphere(float radius, uin
 		3,10,7, 10,6,7, 6,11,7, 6,0,11, 6,1,0, 
 		10,1,6, 11,0,9, 2,11,9, 5,2,9,  11,2,7 
 	};
-
     meshData.Vertices.resize(12);
     meshData.Indices32.assign(&k[0], &k[60]);
 
@@ -343,32 +338,32 @@ GeometryGenerator::MeshData GeometryGenerator::CreateGeosphere(float radius, uin
 	for(uint32 i = 0; i < numSubdivisions; ++i)
 		Subdivide(meshData);
 
-	// Project vertices onto sphere and scale.
-	for(uint32 i = 0; i < meshData.Vertices.size(); ++i)
+	// 将每一个顶点都投影到球面，并推导其对应的纹理坐标
+	for (uint32 i = 0; i < meshData.Vertices.size(); ++i)
 	{
-		// Project onto unit sphere.
+		// 投影到单位球面上
 		XMVECTOR n = XMVector3Normalize(XMLoadFloat3(&meshData.Vertices[i].Position));
 
-		// Project onto sphere.
-		XMVECTOR p = radius*n;
+		// 投射到球面上
+		XMVECTOR p = radius * n;
 
 		XMStoreFloat3(&meshData.Vertices[i].Position, p);
 		XMStoreFloat3(&meshData.Vertices[i].Normal, n);
 
-		// Derive texture coordinates from spherical coordinates.
-        float theta = atan2f(meshData.Vertices[i].Position.z, meshData.Vertices[i].Position.x);
-
-        // Put in [0, 2pi].
-        if(theta < 0.0f)
-            theta += XM_2PI;
+		// 根据球面坐标推导出纹理坐标
+		float theta = atan2f(meshData.Vertices[i].Position.z, meshData.Vertices[i].Position.x);
+			
+		// 将theta限制在[0, 2pi]区间内
+		if (theta < 0.0f)
+			theta += XM_2PI;
 
 		float phi = acosf(meshData.Vertices[i].Position.y / radius);
 
-		meshData.Vertices[i].TexC.x = theta/XM_2PI;
-		meshData.Vertices[i].TexC.y = phi/XM_PI;
+		meshData.Vertices[i].TexC.x = theta / XM_2PI;
+		meshData.Vertices[i].TexC.y = phi / XM_PI;
 
-		// Partial derivative of P with respect to theta
-		meshData.Vertices[i].TangentU.x = -radius*sinf(phi)*sinf(theta);
+		// 求出P关于theta（p对于theta）的偏导数 
+		meshData.Vertices[i].TangentU.x = -radius * sinf(phi) * sinf(theta);
 		meshData.Vertices[i].TangentU.y = 0.0f;
 		meshData.Vertices[i].TangentU.z = +radius*sinf(phi)*cosf(theta);
 
@@ -381,59 +376,28 @@ GeometryGenerator::MeshData GeometryGenerator::CreateGeosphere(float radius, uin
 
 GeometryGenerator::MeshData GeometryGenerator::CreateCylinder(float bottomRadius, float topRadius, float height, uint32 sliceCount, uint32 stackCount)
 {
-    MeshData meshData;
-
-	//
-	// Build Stacks.
-	// 
-
+    MeshData meshData;	
 	float stackHeight = height / stackCount;
-
-	// Amount to increment radius as we move up each stack level from bottom to top.
+	//  计算从下至上遍历每个相邻分层时所需的半径增量
 	float radiusStep = (topRadius - bottomRadius) / stackCount;
-
 	uint32 ringCount = stackCount+1;
 
-	// Compute vertices for each stack ring starting at the bottom and moving up.
+	// 从底面开始，由下至上计算每个堆叠层环上的顶点坐标
 	for(uint32 i = 0; i < ringCount; ++i)
 	{
 		float y = -0.5f*height + i*stackHeight;
 		float r = bottomRadius + i*radiusStep;
-
-		// vertices of ring
+		// 环上的各个顶点
 		float dTheta = 2.0f*XM_PI/sliceCount;
 		for(uint32 j = 0; j <= sliceCount; ++j)
 		{
 			Vertex vertex;
-
 			float c = cosf(j*dTheta);
 			float s = sinf(j*dTheta);
-
 			vertex.Position = XMFLOAT3(r*c, y, r*s);
-
 			vertex.TexC.x = (float)j/sliceCount;
-			vertex.TexC.y = 1.0f - (float)i/stackCount;
-
-			// Cylinder can be parameterized as follows, where we introduce v
-			// parameter that goes in the same direction as the v tex-coord
-			// so that the bitangent goes in the same direction as the v tex-coord.
-			//   Let r0 be the bottom radius and let r1 be the top radius.
-			//   y(v) = h - hv for v in [0,1].
-			//   r(v) = r1 + (r0-r1)v
-			//
-			//   x(t, v) = r(v)*cos(t)
-			//   y(t, v) = h - hv
-			//   z(t, v) = r(v)*sin(t)
-			// 
-			//  dx/dt = -r(v)*sin(t)
-			//  dy/dt = 0
-			//  dz/dt = +r(v)*cos(t)
-			//
-			//  dx/dv = (r0-r1)*cos(t)
-			//  dy/dv = -h
-			//  dz/dv = (r0-r1)*sin(t)
-
-			// This is unit length.
+			vertex.TexC.y = 1.0f - (float)i/stackCount;			
+			// 此为单位长度
 			vertex.TangentU = XMFLOAT3(-s, 0.0f, c);
 
 			float dr = bottomRadius-topRadius;
@@ -576,9 +540,9 @@ GeometryGenerator::MeshData GeometryGenerator::CreateGrid(float width, float dep
 		{
 			float x = -halfWidth + j*dx;
 
-			meshData.Vertices[i*n+j].Position = XMFLOAT3(x, 0.0f, z);
-			meshData.Vertices[i*n+j].Normal   = XMFLOAT3(0.0f, 1.0f, 0.0f);
-			meshData.Vertices[i*n+j].TangentU = XMFLOAT3(1.0f, 0.0f, 0.0f);
+			meshData.Vertices[i * n + j].Position = XMFLOAT3(x, 0.0f, z);
+			meshData.Vertices[i * n + j].Normal   = XMFLOAT3(0.0f, 1.0f, 0.0f);
+			meshData.Vertices[i * n + j].TangentU = XMFLOAT3(1.0f, 0.0f, 0.0f);
 
 			// Stretch texture over grid.
 			meshData.Vertices[i*n+j].TexC.x = j*du;

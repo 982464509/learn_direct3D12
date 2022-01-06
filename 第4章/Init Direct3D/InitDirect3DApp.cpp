@@ -28,9 +28,10 @@ private:
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,PSTR cmdLine, int showCmd)				   
 {
-	// Enable run-time memory check for debug builds. 为调试构建启用运行时内存检查。
+	   // 为调试构建启用运行时内存检查。
 #if defined(DEBUG) | defined(_DEBUG)
-	  //检索或修改_crtDbgFlag标志的状态，以控制调试堆管理器的分配行为（仅调试版本）。_CrtSetDbgFlag函数允许应用程序通过修改_crtDbgFlag标志的位域来控制调试堆管理器如何跟踪内存分配。通过设置这些位（打开），应用程序可以指示调试堆管理器执行特殊的调试操作，包括在应用程序退出时检查内存泄漏，如果发现任何泄漏就报告，通过指定释放的内存块应该保留在堆的链接列表中来模拟低内存条件，以及通过在每个分配请求中检查每个内存块来验证堆的完整性。当_DEBUG没有定义时，对_CrtSetDbgFlag的调用在预处理过程中被删除。
+	  //检索或修改_crtDbgFlag标志的状态，以控制调试堆管理器的分配行为（仅调试版本）。
+       //当_DEBUG没有定义时，对_CrtSetDbgFlag的调用在预处理过程中被删除。
 	_CrtSetDbgFlag( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
 #endif
     std::wstring text = L"-------------------------------------- init";
@@ -74,7 +75,7 @@ void InitDirect3DApp::Update(const GameTimer& gt)
 }
 
 void InitDirect3DApp::Draw(const GameTimer& gt)
-{
+{    
     // 重复使用记录命令的相关内存
     // 只有当与GPU关联的命令列表执行完成时，我们才能将其重置
     ThrowIfFailed(mDirectCmdListAlloc->Reset());
@@ -100,6 +101,7 @@ void InitDirect3DApp::Draw(const GameTimer& gt)
     mCommandList->ClearRenderTargetView(
         CurrentBackBufferView(),
         Colors::Khaki, 0, nullptr); //nullptr表示清除整个渲染目标
+
     mCommandList->ClearDepthStencilView(
         DepthStencilView(), 
         D3D12_CLEAR_FLAG_DEPTH |D3D12_CLEAR_FLAG_STENCIL,   //即将清除的是深度缓冲区还是模板缓冲区。用按位或运算符连接两者表示同时清除这两种缓冲区。
