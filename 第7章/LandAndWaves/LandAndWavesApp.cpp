@@ -181,8 +181,7 @@ bool LandAndWavesApp::Initialize()
     BuildShadersAndInputLayout();
 	BuildLandGeometry();
     BuildWavesGeometryBuffers();
-    BuildRenderItems();
-	BuildRenderItems();
+    BuildRenderItems();	
     BuildFrameResources();
 	BuildPSOs();
 
@@ -502,9 +501,9 @@ void LandAndWavesApp::BuildLandGeometry()
 	std::vector<Vertex> vertices(grid.Vertices.size());
 	for(size_t i = 0; i < grid.Vertices.size(); ++i)
 	{
-		auto& p = grid.Vertices[i].Position;
-		vertices[i].Pos = p;
-		vertices[i].Pos.y = GetHillsHeight(p.x, p.z);
+		auto& poi = grid.Vertices[i].Position;
+		vertices[i].Pos = poi;
+		vertices[i].Pos.y = GetHillsHeight(poi.x, poi.z);
 
 		// 基于顶点高度为它上色
 		if (vertices[i].Pos.y < -10.0f)
@@ -724,14 +723,13 @@ void LandAndWavesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const 
         objCBAddress += ri->ObjCBIndex*objCBByteSize;
 
 		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
-
 		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
 	}
 }
 
-float LandAndWavesApp::GetHillsHeight(float x, float z)const
+float LandAndWavesApp::GetHillsHeight(float poi_x, float poi_z)const
 {
-    return 0.3f*(z*sinf(0.1f*x) + x*cosf(0.1f*z));
+    return 0.3f * (poi_z * sinf(0.1f * poi_x) + poi_x * cosf(0.1f * poi_z));
 }
 
 XMFLOAT3 LandAndWavesApp::GetHillsNormal(float x, float z)const

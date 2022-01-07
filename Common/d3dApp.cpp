@@ -436,13 +436,6 @@ bool D3DApp::InitDirect3D()
 			IID_PPV_ARGS(&md3dDevice)));
 	}
 
-	ComPtr<IDXGIAdapter> pWarpAdapter;
-	ThrowIfFailed(mdxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)));
-	ThrowIfFailed(D3D12CreateDevice(
-		pWarpAdapter.Get(),
-		D3D_FEATURE_LEVEL_11_0,
-		IID_PPV_ARGS(&md3dDevice)));
-
 	// ②. 创建围栏并获取描述符的大小
 	ThrowIfFailed(md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence)));		
 	mRtvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
