@@ -32,7 +32,8 @@ ComPtr<ID3DBlob> d3dUtil::LoadBinary(const std::wstring& filename)
     return blob;
 }
 
-//通过把资源提交至上传堆，才得以将数据从CPU系统内存复制到GPU显存上传缓冲区中。而后再把顶点数据从上传缓冲区复制到真正的顶点缓冲区中。
+//通过把资源提交至上传堆，才得以将数据从CPU系统内存复制到GPU显存上传缓冲区中。
+// 而后再把顶点数据从上传缓冲区复制到真正的顶点缓冲区中。
 //因为需要利用作为中介的上传缓冲区来初始化默认缓冲区（即用堆类型D3D12_HEAP_TYPE_DEFAULT创建的缓冲区）中的数据
 Microsoft::WRL::ComPtr<ID3D12Resource> d3dUtil::CreateDefaultBuffer(
     ID3D12Device* device,
@@ -72,7 +73,9 @@ Microsoft::WRL::ComPtr<ID3D12Resource> d3dUtil::CreateDefaultBuffer(
     // 再通过调用ID3D12CommandList::CopySubresourceRegion函数，把上传堆内的数据复制到 mBuffer.
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(), 
 		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST));
+
     UpdateSubresources<1>(cmdList, defaultBuffer.Get(), uploadBuffer.Get(), 0, 0, 1, &subResourceData);
+
 	cmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(),
 		D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ));
 

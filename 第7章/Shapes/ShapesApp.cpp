@@ -87,8 +87,8 @@ private:
     int mCurrFrameResourceIndex = 0;
 
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
-    ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
 
+    ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
 	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
@@ -199,14 +199,17 @@ void ShapesApp::Update(const GameTimer& gt)
 
     // GPU端是否已经执行完处理当前帧资源的所有命令呢？
     // 如果还没有就令CPU等待，直到GPU完成命令的执行并抵达这个围栏点
-    if(mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)
+    UINT64 _fence = mCurrFrameResource->Fence;
+    if(_fence != 0)
     {
-        HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
-        ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));
-        WaitForSingleObject(eventHandle, INFINITE);
-        CloseHandle(eventHandle);
+        if (_fence > mFence->GetCompletedValue())
+        {
+            HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
+            ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));
+            WaitForSingleObject(eventHandle, INFINITE);
+            CloseHandle(eventHandle);
+        }       
     }
-
     // 更新mCurrFrameResource内的资源（例如常量缓冲区）
 	UpdateObjectCBs(gt);
 	UpdateMainPassCB(gt);
@@ -262,14 +265,12 @@ void ShapesApp::Draw(const GameTimer& gt)
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
     // 完成命令的记录
-    ThrowIfFailed(mCommandList->Close());
-
-    // 将命令列表加入到命令队列中用于执行.
+    mCommandList->Close();   
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
     // 交换前后台缓冲区
-    ThrowIfFailed(mSwapChain->Present(0, 0));
+    mSwapChain->Present(0, 0);
 	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
 
     //  增加围栏值，将命令标记到此围栏点
@@ -421,9 +422,7 @@ void ShapesApp::BuildDescriptorHeaps()
 void ShapesApp::BuildConstantBufferViews()
 {
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-
     UINT objCount = (UINT)mOpaqueRitems.size();
-
     // 每个帧资源中的每一个物体都需要一个对应的CBV描述符
     for(int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex)
     {
@@ -431,25 +430,19 @@ void ShapesApp::BuildConstantBufferViews()
         for(UINT i = 0; i < objCount; ++i)
         {
             D3D12_GPU_VIRTUAL_ADDRESS cbAddress = objectCB->GetGPUVirtualAddress();
-
             // 偏移到缓冲区中第i个物体的常量缓冲区
-            cbAddress += i* objCBByteSize;
-
+            cbAddress += i * objCBByteSize;
             // 偏移到该物体在描述符堆中的CBV
-            int heapIndex = frameIndex*objCount + i;            
+            int heapIndex = frameIndex * objCount + i;            
             auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
             handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);
-
             D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
             cbvDesc.BufferLocation = cbAddress;
             cbvDesc.SizeInBytes = objCBByteSize;
-
             md3dDevice->CreateConstantBufferView(&cbvDesc, handle);
         }
     }
-
     UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
-
     // 最后3个描述符依次是每个帧资源的渲染过程CBV
     for (int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex)
     {
@@ -460,11 +453,9 @@ void ShapesApp::BuildConstantBufferViews()
         int heapIndex = mPassCbvOffset + frameIndex;
         auto handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mCbvHeap->GetCPUDescriptorHandleForHeapStart());
         handle.Offset(heapIndex, mCbvSrvUavDescriptorSize);
-
         D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
         cbvDesc.BufferLocation = cbAddress;
-        cbvDesc.SizeInBytes = passCBByteSize;
-        
+        cbvDesc.SizeInBytes = passCBByteSize;        
         md3dDevice->CreateConstantBufferView(&cbvDesc, handle);
     }
 }
@@ -492,20 +483,11 @@ void ShapesApp::BuildRootSignature()
     // 创建仅含一个槽位（该槽位指向一个仅由单个常量缓冲区组成的描述符区域）的根签名
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
-	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
-		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
-
-	if(errorBlob != nullptr)
-	{
-		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
-	}
-	ThrowIfFailed(hr);
-
-	ThrowIfFailed(md3dDevice->CreateRootSignature(
-		0,
-		serializedRootSig->GetBufferPointer(),
-		serializedRootSig->GetBufferSize(),
-		IID_PPV_ARGS(mRootSignature.GetAddressOf())));
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1, &serializedRootSig, &errorBlob);		
+    md3dDevice->CreateRootSignature(0, 
+        serializedRootSig->GetBufferPointer(), 
+        serializedRootSig->GetBufferSize(), 
+        IID_PPV_ARGS(&mRootSignature));
 }
 
 void ShapesApp::BuildShadersAndInputLayout()
@@ -643,14 +625,10 @@ void ShapesApp::BuildShapeGeometry()
 }
 
 
-
 void ShapesApp::BuildPSOs()
 {
     D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
 
-	//
-	// PSO for opaque objects.
-	//
     ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
 	opaquePsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
 	opaquePsoDesc.pRootSignature = mRootSignature.Get();
@@ -677,7 +655,6 @@ void ShapesApp::BuildPSOs()
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
-
     //
     // PSO for opaque wireframe objects.
     //
@@ -690,9 +667,8 @@ void ShapesApp::BuildPSOs()
 void ShapesApp::BuildFrameResources()
 {
     for(int i = 0; i < gNumFrameResources; ++i)
-    {
-        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
-            1, (UINT)mAllRitems.size()));
+    {       
+        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 1, (UINT)mAllRitems.size()));
     }
 }
 

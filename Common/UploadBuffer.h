@@ -18,19 +18,15 @@ public:
         // typedef struct D3D12_CONSTANT_BUFFER_VIEW_DESC {
         // D3D12_GPU_VIRTUAL_ADDRESS BufferLocation; // 256的整数倍
         // UINT  SizeInBytes;}     // 256的整数倍       
-        if (isConstantBuffer) {
+        if (isConstantBuffer) 
+        {
             mElementByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(T));
-        }
+        }            
+        auto heap = &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        device->CreateCommittedResource(heap, D3D12_HEAP_FLAG_NONE, &CD3DX12_RESOURCE_DESC::Buffer(mElementByteSize * elementCount)
+            , D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&mUploadBuffer));
             
-        ThrowIfFailed(device->CreateCommittedResource(
-            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-            D3D12_HEAP_FLAG_NONE,
-            &CD3DX12_RESOURCE_DESC::Buffer(mElementByteSize*elementCount),
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-            nullptr,
-            IID_PPV_ARGS(&mUploadBuffer)));
-
-        ThrowIfFailed(mUploadBuffer->Map(0, nullptr, reinterpret_cast<void**>(&mMappedData)));
+        mUploadBuffer->Map(0, nullptr, reinterpret_cast<void**>(&mMappedData));
         // 只要还会修改当前的资源，我们就无须取消映射
         // 但是，在资源被GPU使用期间，我们千万不可向该资源进行写操作（所以必须借助于同步技术）
     }
@@ -41,7 +37,6 @@ public:
     {
         if(mUploadBuffer != nullptr)
             mUploadBuffer->Unmap(0, nullptr);
-
         mMappedData = nullptr;
     }
 
@@ -52,6 +47,7 @@ public:
 
     void CopyData(int elementIndex, const T& data)
     {
+        //将数据从系统内存复制到常量缓冲区
         memcpy(&mMappedData[elementIndex*mElementByteSize], &data, sizeof(T));
     }
 

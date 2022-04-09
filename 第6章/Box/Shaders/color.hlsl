@@ -9,7 +9,7 @@
 //可以是t（表示着色器资源视图）、s（采样器）、u（无序访问视图）以及b（常量缓冲区视图），#则为所用的寄存器编号。
 
 // 将常量缓冲区资源（cbuffer）绑定到常量缓冲区寄存器槽0
-cbuffer cbPerObject : register(b0)
+cbuffer cbPerObject22222 : register(b0)
 {
 	float4x4 gWorldViewProj; 
 };
@@ -28,12 +28,9 @@ struct VertexOut
 
 VertexOut VS(VertexIn vin)
 {
-	VertexOut vout;	
-	// Transform to homogeneous clip space.
-	vout.PosH = mul(float4(vin.PosL, 1.0f), gWorldViewProj);	
-	// Just pass vertex color into the pixel shader.
-    vout.Color = vin.Color;
-    
+	VertexOut vout;		
+	vout.PosH = mul(float4(vin.PosL, 1.0f), gWorldViewProj);		
+    vout.Color = vin.Color;    
     return vout;
 }
 

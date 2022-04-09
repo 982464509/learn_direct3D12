@@ -117,7 +117,7 @@ void D3DApp::CreateRtvAndDsvDescriptorHeaps()
     rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
     rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	rtvHeapDesc.NodeMask = 0;
-    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
+	md3dDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf()));
         
 	//用于深度测试的深度/模板缓冲区资源创建一个深度/模板视图（Depth/Stencil View，DSV）	
     D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
@@ -125,7 +125,7 @@ void D3DApp::CreateRtvAndDsvDescriptorHeaps()
     dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
     dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	dsvHeapDesc.NodeMask = 0;
-    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));        		
+    md3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf()));        		
 }
 
 
@@ -138,31 +138,26 @@ void D3DApp::OnResize()
 	// Flush before changing any resources.
 	FlushCommandQueue();	
 	//上面刷新了队列，那么该命令列表就可以重置。以此来复用命令列表及其内存
-    ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+	mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr);
 
 	// 释放所有缓冲区数据
-	for (int i = 0; i < SwapChainBufferCount; ++i) {
+	for (int i = 0; i < SwapChainBufferCount; ++i) 
+	{
 		mSwapChainBuffer[i].Reset();
 	}		
     mDepthStencilBuffer.Reset();
 	
 	// Resize the swap chain.
-    ThrowIfFailed(mSwapChain->ResizeBuffers(
-		SwapChainBufferCount, 
-		mClientWidth, 
-		mClientHeight, 
-		mBackBufferFormat, 
-		DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH));
-
+	mSwapChain->ResizeBuffers(SwapChainBufferCount, mClientWidth, mClientHeight, mBackBufferFormat, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+		
 	mCurrBackBuffer = 0;
 	
-	//⑦. 创建渲染目标视图
-	//通过调用这两种方法为交换链中的每一个缓冲区都创建了一个RTV。
+	//⑦. 创建渲染目标描述符; 交换链中的每一个缓冲区都创建一个RTV。	
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
 	for (UINT i = 0; i < SwapChainBufferCount; i++)
 	{
 		// 获得交换链内的第i个缓冲区
-		ThrowIfFailed(mSwapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapChainBuffer[i])));
+		mSwapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapChainBuffer[i]));
 		// 为此缓冲区创建一个RTV 渲染目标视图
 		md3dDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(), nullptr, rtvHeapHandle);
 		// 偏移到描述符堆中的下一个缓冲区
@@ -190,31 +185,24 @@ void D3DApp::OnResize()
     optClear.DepthStencil.Stencil = 0;
 
 	//根据提供的属性创建一个资源与一个堆，并把该资源提交到这个堆中：	
-    ThrowIfFailed(md3dDevice->CreateCommittedResource(
+    md3dDevice->CreateCommittedResource(
         &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),  //（资源欲提交至的）堆所具有的属性。默认堆：向这堆里提交的资源，唯独GPU可以访问。
 		D3D12_HEAP_FLAG_NONE,
         &depthStencilDesc,  //描述待建的资源
 		D3D12_RESOURCE_STATE_COMMON,
         &optClear, 
-		IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf()))); //希望获得的ID3D12Resource接口的COM ID。
+		IID_PPV_ARGS(&mDepthStencilBuffer)); //希望获得的ID3D12Resource接口的COM ID。
 
     // 利用此资源的格式，为整个资源的第0 mip层创建描述符
-    md3dDevice->CreateDepthStencilView(
-		mDepthStencilBuffer.Get(), 
-		nullptr, 
-		DepthStencilView());
-
+    md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), nullptr, DepthStencilView());
+						
     // 将资源从初始状态转换为深度缓冲区，将其转换为可以绑定在渲染流水线上的深度/模板缓冲区。
-	mCommandList->ResourceBarrier(
-		1, 
-		&CD3DX12_RESOURCE_BARRIER::Transition(
-				mDepthStencilBuffer.Get(),
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(),				
 				D3D12_RESOURCE_STATE_COMMON, 
 				D3D12_RESOURCE_STATE_DEPTH_WRITE));
 	
-
     // 执行调整尺寸的命令
-    ThrowIfFailed(mCommandList->Close());
+	mCommandList->Close();
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
@@ -377,7 +365,7 @@ bool D3DApp::InitMainWindow()
 		MessageBox(0, L"RegisterClass Failed.", 0, 0);
 		return false;
 	}
-
+	
 	// 根据请求的客户端区域尺寸计算窗口的矩形尺寸。
 	RECT R = { 0, 0, mClientWidth, mClientHeight };
     AdjustWindowRect(&R, WS_OVERLAPPEDWINDOW, false);
@@ -408,16 +396,8 @@ bool D3DApp::InitMainWindow()
 
 bool D3DApp::InitDirect3D()
 {
-	// Enable the D3D12 debug layer.
-#if defined(DEBUG) || defined(_DEBUG)	
-{
-	ComPtr<ID3D12Debug> debugController;
-	ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)));
-	debugController->EnableDebugLayer();
-}
-#endif
 	//①. 创建Direct3D 12设备（ID3D12Device）
-	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&mdxgiFactory)));
+	CreateDXGIFactory1(IID_PPV_ARGS(&mdxgiFactory));
 
 	// 尝试创建硬件设备。
 	HRESULT hardwareResult = D3D12CreateDevice(
@@ -436,8 +416,10 @@ bool D3DApp::InitDirect3D()
 			IID_PPV_ARGS(&md3dDevice)));
 	}
 
-	// ②. 创建围栏并获取描述符的大小
-	ThrowIfFailed(md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence)));		
+	// ②. 创建围栏
+	md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence));
+
+	// ②. 获取描述符的大小
 	mRtvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	mDsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -450,19 +432,12 @@ bool D3DApp::InitDirect3D()
 	msQualityLevels.SampleCount = 4;
 	msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
 	msQualityLevels.NumQualityLevels = 0;
-
-	ThrowIfFailed(md3dDevice->CheckFeatureSupport(
-		D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
-		&msQualityLevels,
-		sizeof(msQualityLevels)));
-
+	md3dDevice->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &msQualityLevels, sizeof(msQualityLevels));
+						
     m4xMsaaQuality = msQualityLevels.NumQualityLevels;
 	//平台肯定能支持4X MSAA，所以返回值应该也总是大于0。
 	assert(m4xMsaaQuality > 0 && "Unexpected MSAA quality level.");
 	
-#ifdef _DEBUG
-    LogAdapters();
-#endif
 	//④. 创建命令队列和命令列表	
 	CreateCommandObjects();
 	//⑤. 描述并创建交换链
@@ -478,18 +453,13 @@ void D3DApp::CreateCommandObjects()
 	D3D12_COMMAND_QUEUE_DESC queueDesc = {};
 	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-	ThrowIfFailed(md3dDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&mCommandQueue)));
 
-	ThrowIfFailed(md3dDevice->CreateCommandAllocator(
-		D3D12_COMMAND_LIST_TYPE_DIRECT,
-		IID_PPV_ARGS(mDirectCmdListAlloc.GetAddressOf())));
-
-	ThrowIfFailed(md3dDevice->CreateCommandList(
-		0,
-		D3D12_COMMAND_LIST_TYPE_DIRECT,
+	md3dDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&mCommandQueue));
+	md3dDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(mDirectCmdListAlloc.GetAddressOf()));
+	md3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT,				
 		mDirectCmdListAlloc.Get(), // 关联命令分配器 command allocator
 		nullptr,// 初始化流水线状态对象；因为在这里不会发起绘制命令，所以不会用到流水线状态对象
-		IID_PPV_ARGS(mCommandList.GetAddressOf())));
+		IID_PPV_ARGS(mCommandList.GetAddressOf()));
 
 	// 首先要将命令列表置于关闭状态。这是因为在第一次引用命令列表时，我们要对它进行重置，而在调用
     // 重置方法之前又需先将其关闭
@@ -526,25 +496,23 @@ void D3DApp::CreateSwapChain()
     sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
 	//注意，交换链需要通过命令队列对其进行刷新
-    ThrowIfFailed(mdxgiFactory->CreateSwapChain(		//CreateSwapChain方法用来创建交换链
-		mCommandQueue.Get(),			// 指向ID3D12CommandQueue接口的指针
-		&sd,											// 指向描述交换链的结构体的指针
-		mSwapChain.GetAddressOf())); // 返回所创建的交换链接口
+    mdxgiFactory->CreateSwapChain(mCommandQueue.Get(), &sd, &mSwapChain);						
 }
 
 void D3DApp::FlushCommandQueue()
 {
 	// 增加围栏值，接下来将命令标记到此围栏点
     mCurrentFence++;
-	// 向命令队列中添加一条用来设置新围栏点的命令	。由于这条命令要交由GPU修改围栏值，所以在GPU处理完以前的所有命令之前，它并不会设置新的围栏点Signal
-    ThrowIfFailed(mCommandQueue->Signal(mFence.Get(), mCurrentFence));
+	// 向命令队列中添加一条用来设置新围栏点的命令	。
+	// 由于这条命令要交由GPU修改围栏值，所以在GPU处理完以前的所有命令之前，它并不会设置新的围栏点Signal
+	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 
 	// 在CPU端等待GPU，直到后者执行完这个围栏点之前的所有命令
-    if(mFence->GetCompletedValue() < mCurrentFence)
+    if(mFence->GetCompletedValue() < mCurrentFence)	//如果小于，说明GPU没有处理完所有命令
 	{
 		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
 		// 若GPU命中当前的围栏（即执行到Signal()指令，修改了围栏值），则激发预定事件
-        ThrowIfFailed(mFence->SetEventOnCompletion(mCurrentFence, eventHandle));
+		mFence->SetEventOnCompletion(mCurrentFence, eventHandle);
 		// 等待GPU命中围栏，激发事件
 		WaitForSingleObject(eventHandle, INFINITE);
         CloseHandle(eventHandle);

@@ -37,8 +37,7 @@ struct Vertex
 // 其中的数据将依程序而异，这取决于实际绘制所需的资源
 struct FrameResource
 {
-public:
-    
+public:    
     FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount);
     FrameResource(const FrameResource& rhs) = delete;
     FrameResource& operator=(const FrameResource& rhs) = delete;

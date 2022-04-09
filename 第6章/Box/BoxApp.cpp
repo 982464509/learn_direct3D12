@@ -57,7 +57,7 @@ private:
 private:
     //根签名
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
-    //常量缓冲区描述符
+    //常量缓冲区描述符堆
     ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
     // 此常量缓冲区存储了绘制n个物体所需的常量数据
     std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
@@ -88,18 +88,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 #if defined(DEBUG) | defined(_DEBUG)
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
-    try
-    {
-        BoxApp theApp(hInstance);
-        if (!theApp.Initialize())
-            return 0;
-        return theApp.Run();
-    }
-    catch (DxException& e)
-    {
-        MessageBox(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
-        return 0;
-    }
+    BoxApp theApp(hInstance);
+    theApp.Initialize();
+    return theApp.Run();
 }
 
 BoxApp::BoxApp(HINSTANCE hInstance)
@@ -112,16 +103,19 @@ BoxApp::~BoxApp()
 
 bool BoxApp::Initialize()
 {
+    
     if(!D3DApp::Initialize())
 		return false;		
+    
     // 重置命令列表为执行初始化命令做好准备工作
-    ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+    mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr);
+
+    BuildBoxGeometry();
 
     BuildDescriptorHeaps();
 	BuildConstantBuffers();
     BuildRootSignature();
-    BuildShadersAndInputLayout();
-    BuildBoxGeometry();
+    BuildShadersAndInputLayout();    
     BuildPSO();
 
     // Execute the initialization commands
@@ -136,7 +130,6 @@ bool BoxApp::Initialize()
 void BoxApp::OnResize()
 {
 	D3DApp::OnResize();
-
     // 若用户调整了窗口尺寸，则更新纵横比并重新计算投影矩阵
     XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
     XMStoreFloat4x4(&mProj, P);
@@ -177,11 +170,10 @@ void BoxApp::Draw(const GameTimer& gt)
 {
     // 复用记录命令所用的内存
     // 只有当GPU中的命令列表执行完毕后，我们才可对其进行重置
-	ThrowIfFailed(mDirectCmdListAlloc->Reset());
-
+    mDirectCmdListAlloc->Reset();
     // 通过函数ExecuteCommandList将命令列表加入命令队列后，便可对它进行重置
     // 复用命令列表即复用其相应的内存
-    ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), mPSO.Get()));
+    mCommandList->Reset(mDirectCmdListAlloc.Get(), mPSO.Get());
 
     // 按照资源的用途指示其状态的转变，此处将资源从呈现状态转换为渲染目标状态
     mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
@@ -192,21 +184,16 @@ void BoxApp::Draw(const GameTimer& gt)
     mCommandList->RSSetScissorRects(1, &mScissorRect);
    
     // 清除后台缓冲区和深度缓冲区
-    mCommandList->ClearRenderTargetView(CurrentBackBufferView(),
-        Colors::LightSteelBlue, 0, nullptr);
-    mCommandList->ClearDepthStencilView(DepthStencilView(),
-        D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
-        1.0f, 0, 0, nullptr);
-
+    mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::DeepPink, 0, nullptr);
+    mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+                
     // 指定将要渲染的目标缓冲区
     mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
      
-
-
     // --------------------
 	ID3D12DescriptorHeap* descriptorHeaps[] = { mCbvHeap.Get() };
-	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);//先将CBV堆设置到命令列表上
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());//将根签名设置到命令列表上
 	mCommandList->IASetVertexBuffers(0, 1, &mBoxGeo->VertexBufferView());
 	mCommandList->IASetIndexBuffer(&mBoxGeo->IndexBufferView());
     mCommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);     //primitive topology trianglelist
@@ -214,28 +201,27 @@ void BoxApp::Draw(const GameTimer& gt)
     mCommandList->SetGraphicsRootDescriptorTable(0, mCbvHeap->GetGPUDescriptorHandleForHeapStart());
     mCommandList->DrawIndexedInstanced(mBoxGeo->DrawArgs["box"].IndexCount, 1, 0, 0, 0);				
     // --------------------
-
-
-
+    
     // 按照资源的用途指示其状态的转变，此处将资源从渲染目标状态转换为呈现状态
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 
     // 完成命令的记录
-	ThrowIfFailed(mCommandList->Close());
- 
-    //  向命令队列添加欲执行的命令列表
+    mCommandList->Close();
 	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
 	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 	
 	// swap the back and front buffers
-	ThrowIfFailed(mSwapChain->Present(0, 0));
+    mSwapChain->Present(0, 0);
 	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
 
 	//  等待绘制此帧的一系列命令执行完毕。这种等待的方法虽然简单却也低效
     // 在后面将展示如何重新组织渲染代码，使我们不必在绘制每一帧时都等待
 	FlushCommandQueue();
 }
+
+
+
 
 void BoxApp::OnMouseDown(WPARAM btnState, int x, int y)
 {
@@ -288,9 +274,10 @@ void BoxApp::BuildDescriptorHeaps()
     cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	cbvHeapDesc.NodeMask = 0;
-    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap)));        
+    md3dDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&mCbvHeap));        
 }
 
+//创建常量描述符
 void BoxApp::BuildConstantBuffers()
 {
 	mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
@@ -308,6 +295,7 @@ void BoxApp::BuildConstantBuffers()
 	md3dDevice->CreateConstantBufferView(&cbvDesc,mCbvHeap->GetCPUDescriptorHandleForHeapStart());
 }
 
+//根签名
 void BoxApp::BuildRootSignature()
 {
     // 着色器程序一般需要以资源作为输入（例如常量缓冲区、纹理、采样器等）
@@ -333,17 +321,7 @@ void BoxApp::BuildRootSignature()
 	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
 		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
 
-	if(errorBlob != nullptr)
-	{
-		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
-	}
-	ThrowIfFailed(hr);
-
-	ThrowIfFailed(md3dDevice->CreateRootSignature(
-		0,
-		serializedRootSig->GetBufferPointer(),
-		serializedRootSig->GetBufferSize(),
-		IID_PPV_ARGS(&mRootSignature)));
+    md3dDevice->CreateRootSignature(0, serializedRootSig->GetBufferPointer(), serializedRootSig->GetBufferSize(), IID_PPV_ARGS(&mRootSignature));		
 }
 
 void BoxApp::BuildShadersAndInputLayout()
@@ -450,5 +428,5 @@ void BoxApp::BuildPSO()
     psoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
     psoDesc.DSVFormat = mDepthStencilFormat;
     //创建 ID3D12PipelineState对象
-    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
+    md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO));
 }
