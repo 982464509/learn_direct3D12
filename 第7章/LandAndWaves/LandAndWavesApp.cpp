@@ -267,8 +267,8 @@ void LandAndWavesApp::Draw(const GameTimer& gt)
     // 绑定渲染过程中所用的常量缓冲区。在每个渲染过程中，这段代码只需执行一次 
 	auto passCB = mCurrFrameResource->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
-
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);
+
 
 	// 按照资源的用途指示资源状态的转换
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
@@ -449,14 +449,14 @@ void LandAndWavesApp::BuildRootSignature()
     // Root parameter can be a table, root descriptor or root constants.
     CD3DX12_ROOT_PARAMETER slotRootParameter[2];
 
-    // Create root CBV.
+    // Create root CBV. 根描述符；不需要堆
     slotRootParameter[0].InitAsConstantBufferView(0);
     slotRootParameter[1].InitAsConstantBufferView(1);
 
     // A root signature is an array of root parameters.
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-    // create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+    // 用单个寄存器槽来创建一个根签名，该槽位指向一个仅含有单个常量缓冲区的描述符区域
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
     ComPtr<ID3DBlob> errorBlob = nullptr;
     HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
@@ -707,7 +707,6 @@ void LandAndWavesApp::BuildRenderItems()
 void LandAndWavesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-
 	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
 
 	// For each render item...
@@ -720,10 +719,20 @@ void LandAndWavesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const 
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress();
-        objCBAddress += ri->ObjCBIndex*objCBByteSize;
+        objCBAddress += ri->ObjCBIndex * objCBByteSize;
 
-		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
-		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+		//设置根描述符,将根描述符与资源绑定
+		cmdList->SetGraphicsRootConstantBufferView(
+			0,			//寄存器槽号
+			objCBAddress);	//子资源地址
+
+		//绘制顶点（通过索引缓冲区绘制）
+		cmdList->DrawIndexedInstanced(
+			ri->IndexCount,		//每个实例要绘制的索引数
+			1, //实例化个数
+			ri->StartIndexLocation, //起始索引位置
+			ri->BaseVertexLocation, //子物体起始索引在全局索引中的位置
+			0);		//实例化的高级技术，暂时设置为0
 	}
 }
 
@@ -732,16 +741,16 @@ float LandAndWavesApp::GetHillsHeight(float poi_x, float poi_z)const
     return 0.3f * (poi_z * sinf(0.1f * poi_x) + poi_x * cosf(0.1f * poi_z));
 }
 
-XMFLOAT3 LandAndWavesApp::GetHillsNormal(float x, float z)const
-{
-    // n = (-df/dx, 1, -df/dz)
-    XMFLOAT3 n(
-        -0.03f*z*cosf(0.1f*x) - 0.3f*cosf(0.1f*z),
-        1.0f,
-        -0.3f*sinf(0.1f*x) + 0.03f*x*sinf(0.1f*z));
-
-    XMVECTOR unitNormal = XMVector3Normalize(XMLoadFloat3(&n));
-    XMStoreFloat3(&n, unitNormal);
-
-    return n;
-}
+//XMFLOAT3 LandAndWavesApp::GetHillsNormal(float x, float z)const
+//{
+//    // n = (-df/dx, 1, -df/dz)
+//    XMFLOAT3 n(
+//        -0.03f*z*cosf(0.1f*x) - 0.3f*cosf(0.1f*z),
+//        1.0f,
+//        -0.3f*sinf(0.1f*x) + 0.03f*x*sinf(0.1f*z));
+//
+//    XMVECTOR unitNormal = XMVector3Normalize(XMLoadFloat3(&n));
+//    XMStoreFloat3(&n, unitNormal);
+//
+//    return n;
+//}
