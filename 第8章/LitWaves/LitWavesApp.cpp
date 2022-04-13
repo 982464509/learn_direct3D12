@@ -410,15 +410,14 @@ void LitWavesApp::UpdateObjectCBs(const GameTimer& gt)
 void LitWavesApp::UpdateMaterialCBs(const GameTimer& gt)
 {
 	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
-	for(auto& e : mMaterials)
+	for (auto& e : mMaterials)
 	{
-		// Only update the cbuffer data if the constants have changed.  If the cbuffer
-		// data changes, it needs to be updated for each FrameResource.
+		// 如果材质常量数据有了变化就更新常量缓冲区数据。一旦常量缓冲区数据发生改变，就需对每一个帧
+		// 资源FrameResource进行更新
 		Material* mat = e.second.get();
-		if(mat->NumFramesDirty > 0)
+		if (mat->NumFramesDirty > 0)
 		{
 			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
-
 			MaterialConstants matConstants;
 			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
 			matConstants.FresnelR0 = mat->FresnelR0;
@@ -426,7 +425,7 @@ void LitWavesApp::UpdateMaterialCBs(const GameTimer& gt)
 
 			currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
 
-			// Next FrameResource need to be updated too.
+			// 也需要对下一个FrameResource进行更新
 			mat->NumFramesDirty--;
 		}
 	}

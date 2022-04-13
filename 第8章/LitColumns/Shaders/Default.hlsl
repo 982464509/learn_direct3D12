@@ -17,7 +17,7 @@
     #define NUM_SPOT_LIGHTS 0
 #endif
 
-// Include structures and functions for lighting.
+// 包含了光照所用的结构体与函数
 #include "LightingUtil.hlsl"
 
 // Constant data that varies per frame.
@@ -27,6 +27,7 @@ cbuffer cbPerObject : register(b0)
     float4x4 gWorld;
 };
 
+// 每种材质的不同常量数据
 cbuffer cbMaterial : register(b1)
 {
 	float4 gDiffuseAlbedo;
@@ -35,7 +36,7 @@ cbuffer cbMaterial : register(b1)
 	float4x4 gMatTransform;
 };
 
-// Constant data that varies per material.
+// 绘制过程中所用的杂项常量数据
 cbuffer cbPass : register(b2)
 {
     float4x4 gView;
@@ -54,10 +55,10 @@ cbuffer cbPass : register(b2)
     float gDeltaTime;
     float4 gAmbientLight;
 
-    // Indices [0, NUM_DIR_LIGHTS) are directional lights;
-    // indices [NUM_DIR_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHTS) are point lights;
-    // indices [NUM_DIR_LIGHTS+NUM_POINT_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHT+NUM_SPOT_LIGHTS)
-    // are spot lights for a maximum of MaxLights per object.
+	// 对于每个以MaxLights为光源数量最大值的对象来说，索引[0, NUM_DIR_LIGHTS)表示的是方向光
+  // 源，索引[NUM_DIR_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHTS)表示的是点光源
+  // 索引[NUM_DIR_LIGHTS+NUM_POINT_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHT+NUM_SPOT_ 
+  // LIGHTS)表示的是聚光灯光源
     Light gLights[MaxLights];
 };
  
@@ -82,10 +83,10 @@ VertexOut VS(VertexIn vin)
     float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
     vout.PosW = posW.xyz;
 
-    // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
+	// 假设这里进行的是等比缩放，否则这里需要使用世界矩阵的逆转置矩阵
     vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
 
-    // Transform to homogeneous clip space.
+    // Transform to homogeneous clip space. 到齐次裁剪空间
     vout.PosH = mul(posW, gViewProj);
 
     return vout;
@@ -93,15 +94,16 @@ VertexOut VS(VertexIn vin)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    // Interpolating normal can unnormalize it, so renormalize it.
-    pin.NormalW = normalize(pin.NormalW);
+	// 对法线插值可能导致其非规范化，因此需要再次对它进行规范化处理
+	pin.NormalW = normalize(pin.NormalW);
 
-    // Vector from point being lit to eye. 
-    float3 toEyeW = normalize(gEyePosW - pin.PosW);
+	// 光线经表面上一点反射到观察点这一方向上的向量
+	float3 toEyeW = normalize(gEyePosW - pin.PosW);
 
-	// Indirect lighting.
-    float4 ambient = gAmbientLight*gDiffuseAlbedo;
+	// 间接光照
+	float4 ambient = gAmbientLight * gDiffuseAlbedo;
 
+	// 直接光照
     const float shininess = 1.0f - gRoughness;
     Material mat = { gDiffuseAlbedo, gFresnelR0, shininess };
     float3 shadowFactor = 1.0f;
@@ -110,7 +112,7 @@ float4 PS(VertexOut pin) : SV_Target
 
     float4 litColor = ambient + directLight;
 
-    // Common convention to take alpha from diffuse material.
+	// 从漫反射材质中获取alpha值的常见手段
     litColor.a = gDiffuseAlbedo.a;
 
     return litColor;
